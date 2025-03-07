@@ -1,0 +1,61 @@
+﻿@page "/"
+@using DataContracts.DataTransferObjects
+@using Microsoft.AspNetCore.SignalR.Client
+
+
+@inject HttpClient HttpClient
+
+<PageTitle>Home</PageTitle>
+
+<h1>Hello, world!</h1>
+
+<button @onclick="SendRequest">Send Request</button>
+
+@if (_orderId is not null)
+{
+    <p>@_orderId</p>
+}
+
+@code {
+    private Guid? _orderId;
+    private HubConnection? _hubConnection;
+    private readonly List<NotificationDto> _notifications = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _hubConnection = new HubConnectionBuilder()
+            .WithUrl(new Uri(ServerEndpoints.SignalRNotificationHubAddress))
+            .Build();
+
+        _hubConnection.On<NotificationDto>("OrderUpdate", notification =>
+        {
+            _notifications.Add(notification);
+            InvokeAsync(StateHasChanged);
+        });
+
+        await _hubConnection.StartAsync();
+        
+    }
+
+    private async Task SendRequest()
+    {
+        var response = await HttpClient.PostAsJsonAsync("/users-service/order", new PlaceOrderRequestDto
+        {
+            CustomerName = "Ferdl",
+            CustomerAddress = "Daham",
+            Items =
+            [
+                new OrderItemDto()
+                {
+                    Amount = 1,
+                    ArticleName = "Divolo",
+                    ArticlePrice = 69.69M
+                }
+            ]
+        });
+        var orderResponse = await response.Content.ReadFromJsonAsync<PlaceOrderResponseDto>();
+        _orderId = orderResponse?.OrderId;
+        
+        // TODO: register for notifications for that order
+    }
+}
