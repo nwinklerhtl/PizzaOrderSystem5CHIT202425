@@ -27,6 +27,13 @@ public static class PaymentRequesthandler
             OrderId = dto.OrderId
         }));
 
+        dbContext.Outbox.Add(OutboxMessage.FromMessage(new Notification()
+        {
+            OrderId = dto.OrderId,
+            Title = "Payment Service - Received Payment",
+            Message = "We received your payment."
+        }));
+
         await dbContext.SaveChangesAsync();
 
         return new PaymentResponseDto()

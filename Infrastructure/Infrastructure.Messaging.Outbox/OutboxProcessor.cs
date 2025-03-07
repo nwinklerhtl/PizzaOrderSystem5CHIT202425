@@ -11,7 +11,9 @@ public class OutboxProcessor
 {
     private static readonly Dictionary<string, Type> MessageTypes = new()
     {
-        { Constants.OrderReceivedV1, typeof(OrderReceived) }
+        { Constants.OrderReceivedV1, typeof(OrderReceived) },
+        { Constants.PaymentReceivedV1, typeof(PaymentReceived) },
+        { Constants.NotificationV1, typeof(Notification) }
     };
     
     public int ProcessingDelayMs { get; init; } = 2_000;

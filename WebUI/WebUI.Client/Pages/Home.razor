@@ -13,7 +13,20 @@
 
 @if (_orderId is not null)
 {
-    <p>@_orderId</p>
+    <p>Order ID: @_orderId</p>
+}
+
+@if (_notifications.Any())
+{
+    <h3>Notifications:</h3>
+    @foreach (var n in _notifications)
+    {
+        <p>
+            <strong>@n.Title</strong><br/>
+            @n.Message<br/>
+            <small>@n.CreatedAt</small>
+        </p>
+    }
 }
 
 @code {
@@ -55,7 +68,10 @@
         });
         var orderResponse = await response.Content.ReadFromJsonAsync<PlaceOrderResponseDto>();
         _orderId = orderResponse?.OrderId;
-        
-        // TODO: register for notifications for that order
+
+        if (_hubConnection is not null)
+        {
+            await _hubConnection.SendAsync("RegisterOrderUpdates", _orderId.ToString());
+        }
     }
 }
