@@ -21,6 +21,8 @@ where T : AMessage, new()
         _connection = await factory.CreateConnectionAsync();
         _channel = await _connection.CreateChannelAsync();
 
+        await _channel.ExchangeDeclareAsync(exchange, ExchangeType.Topic);
+
         var startupAssembly = 
             System.Reflection.Assembly.GetEntryAssembly()?.GetName().Name ?? "Receiver";
         var messageType = new T().MessageType();
