@@ -1,19 +1,57 @@
 ﻿@page "/"
+@using System.Security.Cryptography.X509Certificates
 @using DataContracts.DataTransferObjects
 @using Microsoft.AspNetCore.SignalR.Client
 
 
 @inject HttpClient HttpClient
 
-<PageTitle>Home</PageTitle>
+<PageTitle>Order Pizza</PageTitle>
 
-<h1>Hello, world!</h1>
+<h3>Order Pizza</h3>
 
-<button @onclick="SendRequest">Send Request</button>
+<div>
+    <label>Customer Name:</label>
+    <input @bind="order.CustomerName" />
+</div>
+<div>
+    <label>Customer Address:</label>
+    <input @bind="order.CustomerAddress" />
+</div>
+
+<h4>Order Items</h4>
+@foreach (var item in order.Items)
+{
+    <div>
+        <label>Article Name:</label>
+        <input @bind="item.ArticleName" />
+        <label>Article Price:</label>
+        <input type="number" @bind="item.ArticlePrice" />
+        <label>Amount:</label>
+        <input type="number" @bind="item.Amount" />
+    </div>
+}
+
+<button @onclick="AddItem">Add Item</button>
+<button @onclick="PlaceOrder">Place Order</button>
 
 @if (_orderId is not null)
 {
     <p>Order ID: @_orderId</p>
+}
+
+@if (_showPaymentForm)
+{
+    <div>
+        <label>Payment Amount:</label>
+        <input @bind="_paymentAmount" />
+    </div>
+    <button @onclick="Pay">Pay</button>
+}
+
+@if (_paidAt is not null)
+{
+    <p>@_paidAt</p>
 }
 
 @if (_notifications.Any())
@@ -33,6 +71,38 @@
     private Guid? _orderId;
     private HubConnection? _hubConnection;
     private readonly List<NotificationDto> _notifications = [];
+    private bool _showPaymentForm = false;
+    private decimal _paymentAmount = 0M;
+    private DateTimeOffset? _paidAt;
+    
+    private PlaceOrderRequestDto order = new PlaceOrderRequestDto
+    {
+        Items = new List<OrderItemDto>()
+    };
+
+    private void AddItem()
+    {
+        order.Items.Add(new OrderItemDto());
+    }
+
+    private async Task PlaceOrder()
+    {
+        var response = await HttpClient.PostAsJsonAsync("users-service/order", order);
+        if (response.IsSuccessStatusCode)
+        {
+            var orderResponse = await response.Content.ReadFromJsonAsync<PlaceOrderResponseDto>();
+            _orderId = orderResponse?.OrderId;
+            
+            if (_hubConnection is not null)
+            {
+                await _hubConnection.SendAsync("RegisterOrderUpdates", _orderId.ToString());
+            }
+        }
+        else
+        {
+            // TODO: handle error
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -43,35 +113,34 @@
         _hubConnection.On<NotificationDto>("OrderUpdate", notification =>
         {
             _notifications.Add(notification);
+            if (notification.Title == "Payment pending")
+            {
+                _showPaymentForm = true;
+            }
             InvokeAsync(StateHasChanged);
         });
 
         await _hubConnection.StartAsync();
-        
     }
 
-    private async Task SendRequest()
+    private async Task Pay()
     {
-        var response = await HttpClient.PostAsJsonAsync("/users-service/order", new PlaceOrderRequestDto
+        var paymentDto = new PaymentRequestDto()
         {
-            CustomerName = "Ferdl",
-            CustomerAddress = "Daham",
-            Items =
-            [
-                new OrderItemDto()
-                {
-                    Amount = 1,
-                    ArticleName = "Divolo",
-                    ArticlePrice = 69.69M
-                }
-            ]
-        });
-        var orderResponse = await response.Content.ReadFromJsonAsync<PlaceOrderResponseDto>();
-        _orderId = orderResponse?.OrderId;
-
-        if (_hubConnection is not null)
+            OrderId = _orderId!.Value,
+            Amount = _paymentAmount
+        };
+        var response = await HttpClient.PostAsJsonAsync("payments-service/payment", paymentDto);
+        if (response.IsSuccessStatusCode)
         {
-            await _hubConnection.SendAsync("RegisterOrderUpdates", _orderId.ToString());
+            var paymentResponse = await response.Content.ReadFromJsonAsync<PaymentResponseDto>();
+            _paidAt = paymentResponse?.PaidAt;
+            _showPaymentForm = false;
+            _paymentAmount = 0M;
+        }
+        else
+        {
+            // TODO: handle error
         }
     }
 }

@@ -2,6 +2,7 @@ using CloudNative.CloudEvents;
 using DataContracts.Messages;
 using DataContracts.Messages.ServiceMessages;
 using Infrastructure.Messaging.Interfaces;
+using Infrastructure.Messaging.Outbox.Domain;
 using Infrastructure.Messaging.RabbitMq;
 using Microsoft.EntityFrameworkCore;
 using Services.Payment.ApiRequestHandlers;
@@ -60,6 +61,14 @@ await RabbitMqMessagingFactory.CreateReceiverAsync<OrderReceived>(
             OrderId = orderReceived.OrderId,
             PaymentAmount = orderReceived.TotalValue
         });
+
+        dbContext.Outbox.Add(OutboxMessage.FromMessage(
+            new Notification()
+            {
+                OrderId = orderReceived.OrderId,
+                Title = "Payment pending",
+                Message = $"We are waiting for your payment of {orderReceived.TotalValue:C}"
+            }));
 
         await dbContext.SaveChangesAsync();
     });
